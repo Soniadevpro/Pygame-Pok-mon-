@@ -1,4 +1,3 @@
-# controllers/game_controller.py
 import pygame
 import random
 from models.player import Player
@@ -12,23 +11,22 @@ from views.combat_view import CombatView
 class GameController:
     def __init__(self):
         pygame.init()
-        self.tile_size = 40  # taille d'une case
-        self.player = Player(name="Sacha", position=(5, 5))  # coordonnées en cases
+        self.tile_size = 40
+        self.player = Player(name="Sacha", position=(5, 5))
         starter_pokemon = Pokemon(name="Pikachu", hp=35, max_hp=35, attack=55, defense=40)
         self.player.add_pokemon(starter_pokemon)
         self.inventory = Inventory()
-        self.map = Map(width=20, height=15)  # plus grande carte pour avoir de l'espace
+        self.map = Map(width=20, height=15)
         self.view = GameView(self, self.tile_size)
         self.running = True
         self.clock = pygame.time.Clock()
 
     def run(self):
-        move_cooldown = 150  # Temps en ms entre chaque déplacement
+        move_cooldown = 150
         last_move = pygame.time.get_ticks()
 
         while self.running:
             current_time = pygame.time.get_ticks()
-
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
@@ -45,12 +43,13 @@ class GameController:
                     dy = -1
                 elif keys[pygame.K_DOWN]:
                     dy = 1
+                else:
+                    dx = dy = 0
 
                 if dx != 0 or dy != 0:
                     new_x = self.player.position[0] + dx
                     new_y = self.player.position[1] + dy
 
-                    # Vérifie limites de la carte avant de déplacer
                     if 0 <= new_x < self.map.width and 0 <= new_y < self.map.height:
                         self.player.position = (new_x, new_y)
                         self.view.update_player_position(new_x, new_y)
@@ -58,43 +57,58 @@ class GameController:
 
                     last_move = current_time
 
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    self.running = False
-
             self.view.render()
             self.clock.tick(60)
 
         pygame.quit()
 
-
     def check_for_encounter(self):
         x, y = self.player.position
-        if self.map.grid[y][x] == "G":
-            if random.random() < 0.1:
-                wild_pokemon = Pokemon(name="Rattata", hp=30, max_hp=30, attack=30, defense=15)
-                combat = Combat(self.player.pokemons[0], wild_pokemon)
-                print("Un Pokémon sauvage apparaît !")
-                
-                
-                
-                combat_running = True
-                combat_view = CombatView(self, combat)
-                while combat_running:
-                    for event in pygame.event.get():
-                        if event.type == pygame.QUIT:
-                            self.running = False
-                            combat_running = False
-                            
-                    combat_view.render()
-                    pygame.display.flip()
-                    
-                    
-                    if combat.is_over():
-                        print("Combat terminé !")
+        if self.map.grid[y][x] == "G" and random.random() < 0.1:
+            wild_pokemon = Pokemon(name="Rattata", hp=30, max_hp=30, attack=30, defense=15)
+            combat = Combat(self.player.pokemons[0], wild_pokemon)
+            print("Un Pokémon sauvage apparaît !")
+
+            combat_running = True
+            combat_view = CombatView(self, combat)
+
+            while combat_running:
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        self.running = False
                         combat_running = False
-                        
-                        
-                    self.clock.tick(30)
+
+                    elif event.type == pygame.MOUSEBUTTONDOWN:
+                        action = combat_view.get_button_click(event.pos)
+
+                        if action == "attack":
+                            damage = combat.player_attack()
+                            print(f"Vous infligez {damage} dégâts !")
+
+                            if combat.wild_pokemon.is_fainted():
+                                print("Pokémon sauvage KO !")
+                                combat_running = False
+                            else:
+                                damage = combat.wild_attack()
+                                print(f"Le Pokémon sauvage inflige {damage} dégâts !")
+                                if combat.player_pokemon.is_fainted():
+                                    print("Votre Pokémon est KO !")
+                                    combat_running = False
+
+                        elif action == "run":
+                            if combat.player_run():
+                                print("Vous avez fui !")
+                                combat_running = False
+                            else:
+                                print("Échec de la fuite !")
+                                damage = combat.wild_attack()
+                                print(f"Le Pokémon sauvage inflige {damage} dégâts !")
+                                if combat.player_pokemon.is_fainted():
+                                    print("Votre Pokémon est KO !")
+                                    combat_running = False
+
+                combat_view.render()
+                self.clock.tick(30)
+
 
 

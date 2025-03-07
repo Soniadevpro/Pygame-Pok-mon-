@@ -7,6 +7,11 @@ class CombatView:
         self.screen = controller.view.screen
         self.font = pygame.font.Font(None, 24)
         
+        # Définir clairement les boutons (Attaque, Fuite)
+        self.attack_button = pygame.Rect(50, 500, 100, 40)
+        self.run_button = pygame.Rect(200, 500, 100, 40)
+        
+        
         
     def render(self):
         self.screen.fill((30, 30, 30))
@@ -24,5 +29,22 @@ class CombatView:
             True, (255, 255, 255)
         )
         self.screen.blit(wild_pokemon_text, (50, 50))
-
+        
+        
+        # Draw buttons
+        pygame.draw.rect(self.screen, (0, 200, 0), self.attack_button)
+        pygame.draw.rect(self.screen, (200, 0, 0), self.run_button)
+        
+        
+        # Draw text on buttons
+        attack_text = self.font.render("Attaque", True, (255, 255, 255))
+        run_text = self.font.render("Fuite", True, (255, 255, 255))
+        
         pygame.display.flip()
+
+    def get_button_click(self, pos):
+        if self.attack_button.collidepoint(pos):
+            return "attack"
+        elif self.run_button.collidepoint(pos):
+            return "run"
+        return None
