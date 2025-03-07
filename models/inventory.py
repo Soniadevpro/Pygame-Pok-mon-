@@ -1,6 +1,6 @@
 class Inventory:
     def __init__(self):
-        self.items = {"Pokeball": 5, "Potion": 2}
+        self.items = {"Pokeball": 5, "Potion": 3}
         
     def add_item(self, item, quantity):
         if item in self.items:
@@ -10,7 +10,7 @@ class Inventory:
             
             
     def use_item(self, item):
-        if self.tems.get(item, 0) > 0:
+        if self.items.get(item, 0) > 0:
             self.items[item] -= 1
             return True
         return False

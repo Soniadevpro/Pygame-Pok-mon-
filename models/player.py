@@ -8,10 +8,12 @@ class Player:
         self.pokemons = []
 
     def add_pokemon(self, pokemon):
-        if len(self.pokemons) < 6:
-            self.pokemons.append(pokemon)
-            return True
-        return False
+            if len(self.pokemons) < 6:
+                self.pokemons.append(pokemon)
+                return True
+            else:
+                print("Votre équipe est pleine !")
+                return False
     
     def move(self, dx, dy):
         # Change la position en fonction du déplacement demandé

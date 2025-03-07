@@ -7,6 +7,7 @@ from models.map import Map
 from views.game_view import GameView
 from models.combat import Combat
 from views.combat_view import CombatView
+from views.team_view import TeamView
 
 class GameController:
     def __init__(self):
@@ -20,6 +21,7 @@ class GameController:
         self.view = GameView(self, self.tile_size)
         self.running = True
         self.clock = pygame.time.Clock()
+        self.team_view = TeamView(self)
 
     def run(self):
         move_cooldown = 150
@@ -30,7 +32,13 @@ class GameController:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
-
+                    
+                    
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_t:
+                        self.team_view.visible = not self.team_view.visible
+                        
+                        
             keys = pygame.key.get_pressed()
             dx, dy = 0, 0
 
@@ -58,7 +66,8 @@ class GameController:
                     last_move = current_time
 
             self.view.render()
-            self.clock.tick(60)
+            self.team_view.render()
+            pygame.display.flip()
 
         pygame.quit()
 
@@ -106,6 +115,24 @@ class GameController:
                                 if combat.player_pokemon.is_fainted():
                                     print("Votre Pokémon est KO !")
                                     combat_running = False
+                                    
+                        elif action == "capture":
+                            success = combat.attempt_capture(self.inventory)
+                            if success:
+                                added = self.player.add_pokemon(combat.wild_pokemon)
+                                if added:
+                                    print(f"Bravo ! {combat.wild_pokemon.name} capturé !")
+                                else:
+                                    print("Équipe pleine, capture impossible !")
+                                combat_running = False
+                            else:
+                                print("Capture échouée !")
+                                damage = combat.wild_attack()
+                                print(f"Le Pokémon sauvage inflige {damage} dégâts !")
+                                if combat.player_pokemon.is_fainted():
+                                    print("Votre Pokémon est KO !")
+                                    combat_running = False
+
 
                 combat_view.render()
                 self.clock.tick(30)
