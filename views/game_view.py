@@ -9,97 +9,92 @@ class GameView:
             (controller.map.width * tile_size, controller.map.height * tile_size))
         pygame.display.set_caption("Pokémon Game")
 
-        # Charger le sprite sheet du dresseur
-        self.sprite_sheet = pygame.image.load("assets/sprites/trainer_sheet.png").convert()
-        
-        # Obtenir la couleur exacte du fond (en utilisant le pixel en haut à gauche)
-        self.blue_background = self.sprite_sheet.get_at((0, 0))
-        self.sprite_sheet.set_colorkey(self.blue_background)
-        
-        # Découper les sprites du personnage
-        self.sprites = self.load_sprites(self.sprite_sheet)
+        # Charger les sprites individuels
+        self.sprites = {
+            "down": [
+                pygame.image.load("assets/sprites/walk_down_static.png").convert_alpha(),
+                pygame.image.load("assets/sprites/walk_down_frame1.png").convert_alpha(),
+                pygame.image.load("assets/sprites/walk_down_frame2.png").convert_alpha()
+            ],
+            "up": [
+                pygame.image.load("assets/sprites/walk_up_static.png").convert_alpha(),
+                pygame.image.load("assets/sprites/walk_up_frame1.png").convert_alpha(),
+                pygame.image.load("assets/sprites/walk_up_frame2.png").convert_alpha()
+            ],
+            "left": [
+                pygame.image.load("assets/sprites/walk_left_static.png").convert_alpha(),
+                pygame.image.load("assets/sprites/walk_left_frame1.png").convert_alpha(),
+                pygame.image.load("assets/sprites/walk_left_frame2.png").convert_alpha()
+            ],
+            "right": [
+                pygame.image.load("assets/sprites/walk_right_static.png").convert_alpha(),
+                pygame.image.load("assets/sprites/walk_right_frame1.png").convert_alpha(),
+                pygame.image.load("assets/sprites/walk_right_frame2.png").convert_alpha()
+            ]
+        }
+
+        # Redimensionner les sprites
+        for direction in self.sprites:
+            for i in range(len(self.sprites[direction])):
+                sprite = self.sprites[direction][i]
+                new_width = int(self.tile_size * 0.8)
+                new_height = int(new_width * (sprite.get_height() / sprite.get_width()))
+                self.sprites[direction][i] = pygame.transform.scale(sprite, (new_width, new_height))
+
         self.current_direction = "down"  # Direction initiale
         self.current_frame = 0  # Frame initiale
         self.animation_timer = 0  # Timer pour l'animation
         self.animation_speed = 150  # Vitesse d'animation en millisecondes
         self.is_moving = False  # État de mouvement
 
-    def load_sprites(self, sprite_sheet):
+    def load_sprites(self):
         """
-        Découpe la sprite sheet de Brendan en se concentrant sur les animations de marche.
+        Charge les sprites individuels depuis des fichiers séparés
         """
-        # Taille d'un sprite individuel
-        sprite_width = 16
-        sprite_height = 20
-        
-        # IMPORTANT: Voici les positions CORRIGÉES pour les animations de marche
-        # Ces positions sont ajustées en fonction de l'image que vous avez partagée
         sprite_positions = {
             "down": [
-                [0, 0, sprite_width, sprite_height],           # Statique face
-                [sprite_width, 0, sprite_width, sprite_height], # Pas 1 face
-                [sprite_width * 2, 0, sprite_width, sprite_height], # Pas 2 face
+                "assets/sprites/walk_down_static.png",
+                "assets/sprites/walk_down_frame1.png", 
+                "assets/sprites/walk_down_frame2.png"
             ],
             "up": [
-                [0, sprite_height, sprite_width, sprite_height],      # Statique dos
-                [sprite_width, sprite_height, sprite_width, sprite_height],  # Pas 1 dos
-                [sprite_width * 2, sprite_height, sprite_width, sprite_height], # Pas 2 dos
+                "assets/sprites/walk_up_static.png",
+                "assets/sprites/walk_up_frame1.png", 
+                "assets/sprites/walk_up_frame2.png"
             ],
             "left": [
-                [0, sprite_height * 2, sprite_width, sprite_height],      # Statique gauche
-                [sprite_width, sprite_height * 2, sprite_width, sprite_height],  # Pas 1 gauche
-                [sprite_width * 2, sprite_height * 2, sprite_width, sprite_height], # Pas 2 gauche
+                "assets/sprites/walk_left_static.png",
+                "assets/sprites/walk_left_frame1.png", 
+                "assets/sprites/walk_left_frame2.png"
             ],
             "right": [
-                [0, sprite_height * 3, sprite_width, sprite_height],      # Statique droite
-                [sprite_width, sprite_height * 3, sprite_width, sprite_height],  # Pas 1 droite
-                [sprite_width * 2, sprite_height * 3, sprite_width, sprite_height], # Pas 2 droite
-            ],
+                "assets/sprites/walk_right_static.png",
+                "assets/sprites/walk_right_frame1.png", 
+                "assets/sprites/walk_right_frame2.png"
+            ]
         }
         
-        # Charger les sprites avec des paramètres de débogage
         sprites = {}
-        for direction, positions in sprite_positions.items():
+        for direction, image_paths in sprite_positions.items():
             sprites[direction] = []
-            for pos in positions:
+            for path in image_paths:
                 try:
-                    # Afficher les coordonnées pour le débogage
-                    print(f"Chargement du sprite {direction} à la position {pos}")
+                    # Charger l'image
+                    sprite_surface = pygame.image.load(path).convert_alpha()
                     
-                    # Extraire le sprite de la sprite sheet
-                    sprite = sprite_sheet.subsurface((pos[0], pos[1], pos[2], pos[3])).copy()
+                    # Redimensionner le sprite
+                    new_width = int(self.tile_size * 0.8)
+                    new_height = int(new_width * (sprite_surface.get_height() / sprite_surface.get_width()))
+                    scaled_sprite = pygame.transform.scale(sprite_surface, (new_width, new_height))
                     
-                    # Appliquer la transparence
-                    sprite.set_colorkey(self.blue_background)
-                    
-                    # Créer une nouvelle surface avec canal alpha pour une meilleure transparence
-                    alpha_sprite = pygame.Surface((sprite_width, sprite_height), pygame.SRCALPHA)
-                    
-                    # Remplacer les pixels bleus par des pixels transparents
-                    for x in range(sprite_width):
-                        for y in range(sprite_height):
-                            try:
-                                pixel_color = sprite.get_at((x, y))
-                                if pixel_color != self.blue_background:  # Si ce n'est pas le fond bleu
-                                    alpha_sprite.set_at((x, y), pixel_color)
-                            except IndexError:
-                                continue
-                    
-                    # Utiliser des dimensions fixes pour conserver les proportions
-                    # et s'assurer que le sprite est correctement positionné
-                    new_width = int(self.tile_size * 0.8)  # 80% de la taille de la tuile
-                    new_height = int(new_width * (sprite_height / sprite_width))  # Conserver le ratio
-                    
-                    scaled_sprite = pygame.transform.scale(alpha_sprite, (new_width, new_height))
                     sprites[direction].append(scaled_sprite)
                     
-                except (ValueError, pygame.error) as e:
-                    print(f"ERREUR lors du chargement du sprite {direction}, position {pos}: {e}")
-                    # Créer un sprite d'erreur (rouge) pour identifier visuellement les problèmes
-                    error_sprite = pygame.Surface((sprite_width, sprite_height), pygame.SRCALPHA)
+                except pygame.error as e:
+                    print(f"Erreur lors du chargement du sprite {path}: {e}")
+                    # Sprite de remplacement en cas d'erreur
+                    error_sprite = pygame.Surface((new_width, new_height), pygame.SRCALPHA)
                     error_sprite.fill((255, 0, 0, 128))  # Rouge semi-transparent
-                    scaled_error = pygame.transform.scale(error_sprite, (self.tile_size, self.tile_size))
-                    sprites[direction].append(scaled_error)
+                    sprites[direction].append(error_sprite)
         
         return sprites
 
