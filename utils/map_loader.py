@@ -30,8 +30,8 @@ class TiledMap:
         self.tile_height = self.tmx_data.tileheight
         print(f"📏 Dimensions carte : {self.width}x{self.height} tuiles de {self.tile_width}x{self.tile_height}px")
         
-        # Facteur d'échelle pour agrandir les tuiles (passer de 16x16 à 40x40 par exemple)
-        self.scale_factor = 2.0  # Ajustez selon vos besoins
+        # Facteur d'échelle pour agrandir les tuiles
+        self.scale_factor = 2.0
         
         # Taille réelle d'une tuile après mise à l'échelle
         self.real_tile_width = int(self.tile_width * self.scale_factor)
@@ -48,56 +48,27 @@ class TiledMap:
         # Créer un groupe de sprites qui contient notre calque de carte
         self.group = pyscroll.PyscrollGroup(map_layer=self.map_layer)
         
-        # Listes pour stocker les types de tuiles
-        self.walkable_tiles = []
-        self.grass_tiles = []
-        self.water_tiles = []
-        self.building_tiles = []
-        
         # Points d'intérêt
         self.points_of_interest = {}
         
-        # Analyser les propriétés des tuiles
-        self._parse_map_properties()
+        # Points de départ et zones spéciales
+        self._parse_map_objects()
         
         print(f"✅ Carte Tiled initialisée avec un facteur d'échelle de {self.scale_factor}")
     
-    def _parse_map_properties(self):
-        """Analyse les propriétés des tuiles et des objets de la carte"""
-        # Parcourir tous les objets définis dans Tiled
-        print("🔍 Analyse des objets...")
+    def _parse_map_objects(self):
+        """Analyse les objets et points d'intérêt de la carte"""
+        print("🔍 Analyse des objets de la carte...")
         
+        # Parcourir tous les objets
         for obj in self.tmx_data.objects:
+            # Point de départ du joueur
             if hasattr(obj, 'type') and obj.type == "player_start":
                 self.points_of_interest["player_start"] = (
                     obj.x * self.scale_factor, 
                     obj.y * self.scale_factor
                 )
                 print(f"✅ Point de départ du joueur trouvé: ({obj.x}, {obj.y})")
-        
-        # Version simplifiée de l'analyse des tilesets
-        try:
-            # Pour l'instant, considérons toutes les tuiles comme praticables
-            # pour éviter l'erreur "Element has no property tiles"
-            print("⚠️ Toutes les tuiles seront considérées comme praticables.")
-            for layer in self.tmx_data.visible_layers:
-                if hasattr(layer, 'data'):
-                    for y in range(self.height):
-                        for x in range(self.width):
-                            try:
-                                # Si la tuile n'est pas vide (gid > 0), elle est praticable
-                                if layer.data[y][x] > 0:
-                                    # Ajouter à walkable_tiles car nous ne pouvons pas accéder aux propriétés
-                                    self.walkable_tiles.append(layer.data[y][x])
-                                    
-                                    # Ajouter certains types spécifiques basés sur des heuristiques
-                                    # Par exemple, si la tuile est verte, c'est probablement de l'herbe
-                                    
-                            except (IndexError, AttributeError):
-                                continue
-        except Exception as e:
-            print(f"⚠️ Erreur lors de l'analyse des tilesets: {e}")
-            print("⚠️ Utilisation des paramètres par défaut.")
     
     def get_spawn_position(self):
         """Retourne la position de départ du joueur ou une position par défaut"""
@@ -120,7 +91,6 @@ class TiledMap:
             self.group.center(player_rect.center)
             # Mettre à jour le groupe
             self.group.update()
-            print(f"✅ Mise à jour de la caméra sur {player_rect.center}")
         except Exception as e:
             print(f"❌ Erreur lors de la mise à jour de la caméra: {e}")
     
@@ -135,24 +105,33 @@ class TiledMap:
             tile_x >= self.width or tile_y >= self.height):
             return False
         
-        # Vérifier chaque calque pour la tuile à cette position
+        # Vérifier chaque calque visible
         for layer in self.tmx_data.visible_layers:
             if hasattr(layer, 'data'):
                 try:
                     # Récupérer le GID de la tuile
                     gid = layer.data[tile_y][tile_x]
                     
-                    # Vérifier si la tuile est un obstacle ou une tuile praticable
-                    if gid != 0:  # Tuile non vide
-                        # Si c'est un obstacle (non praticable)
-                        if gid not in self.walkable_tiles:
-                            return False
-                except (IndexError, AttributeError):
+                    # Vérifier les propriétés du calque
+                    if hasattr(layer, 'properties'):
+                        # Si le calque est marqué comme praticable
+                        if layer.properties.get('walkable', False):
+                            return True
+                    
+                    # Vérifier si la tuile est non vide
+                    if gid != 0:
+                        # Regarder les propriétés de la tuile
+                        tile_properties = self.tmx_data.get_tile_properties_by_gid(gid)
+                        
+                        # Vérifier si la tuile est explicitement praticable
+                        if tile_properties and tile_properties.get('walkable', False):
+                            return True
+                
+                except (IndexError, AttributeError, KeyError):
                     continue
         
-        # Si on n'a pas trouvé d'obstacle, la position est praticable
-        return True
-    
+        return False
+
     def is_grass(self, x, y):
         """Vérifie si la position (x, y) est dans l'herbe"""
         # Convertir en coordonnées de tuile
@@ -164,18 +143,29 @@ class TiledMap:
             tile_x >= self.width or tile_y >= self.height):
             return False
         
-        # Vérifier chaque calque pour la tuile à cette position
+        # Vérifier chaque calque visible
         for layer in self.tmx_data.visible_layers:
             if hasattr(layer, 'data'):
                 try:
                     # Récupérer le GID de la tuile
                     gid = layer.data[tile_y][tile_x]
                     
-                    # Vérifier si c'est une tuile d'herbe
-                    if gid in self.grass_tiles:
-                        return True
-                except (IndexError, AttributeError):
+                    # Vérifier les propriétés du calque
+                    if hasattr(layer, 'properties'):
+                        # Si le calque est marqué comme herbe
+                        if layer.properties.get('type') == 'grass':
+                            return True
+                    
+                    # Vérifier si la tuile est non vide
+                    if gid != 0:
+                        # Regarder les propriétés de la tuile
+                        tile_properties = self.tmx_data.get_tile_properties_by_gid(gid)
+                        
+                        # Vérifier si la tuile est explicitement de l'herbe
+                        if tile_properties and tile_properties.get('type') == 'grass':
+                            return True
+                
+                except (IndexError, AttributeError, KeyError):
                     continue
         
-        # Si on n'a pas trouvé d'herbe, retourner False
         return False

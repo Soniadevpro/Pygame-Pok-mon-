@@ -191,16 +191,20 @@ class GameController:
                     
                     # Vérifier les limites de la carte
                     valid_position = (0 <= grid_x < self.map.width and 
-                                     0 <= grid_y < self.map.height)
+                                    0 <= grid_y < self.map.height)
                     
                     if valid_position:
                         is_valid = self.map.is_walkable(grid_x, grid_y)
                 
                 # Appliquer le déplacement si la position est valide
-                
+                if is_valid:
+                    # Mettre à jour la position du joueur
+                    self.player.position = (new_x, new_y)
                     
+                    # Mise à jour du rectangle du joueur pour les collisions
                     self.player_rect.x = new_x
                     self.player_rect.y = new_y
+                    
                     # Mettre à jour la caméra pour la carte Tiled
                     if self.using_tiled and hasattr(self.map, 'update'):
                         try:
