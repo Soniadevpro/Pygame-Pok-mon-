@@ -34,9 +34,18 @@ class GameController:
                 max_hp=pikachu_data["hp"],
                 attack=pikachu_data["attack"],
                 defense=pikachu_data["defense"],
-                sprite_path=pikachu_data["sprite_path"]
+                sprite_path=pikachu_data["sprite_path_front"],  # ✅ Sprite de face (pour affichage hors combat)
+                sprite_path_back=pikachu_data["sprite_path_back"]
+
             )
-            self.player.add_pokemon(starter_pokemon)
+            self.player.add_pokemon(Pokemon(
+                name=pikachu_data["name"],
+                hp=pikachu_data["hp"],
+                max_hp=pikachu_data["hp"],
+                attack=pikachu_data["attack"],
+                defense=pikachu_data["defense"],
+                sprite_path=pikachu_data["sprite_path_back"]  # ✅ Sprite de dos pour le joueur
+            ))
 
         # Vérifier que Pikachu est bien ajouté
         print(f"Pokémon dans l'équipe : {[p.name for p in self.player.pokemons]}")
@@ -107,30 +116,45 @@ class GameController:
     def check_for_encounter(self):
         x, y = self.player.position
         if self.map.grid[y][x] == "G" and random.random() < 0.1:
-            wild_pokemon = Pokemon(name="Rattata", hp=30, max_hp=30, attack=30, defense=15)
-            combat = Combat(self.player.pokemons[0], wild_pokemon)
-            print("Un Pokémon sauvage apparaît !")
+            wild_pokemon_data = fetch_pokemon("rattata")  # ✅ On récupère un Pokémon sauvage aléatoire
+            if wild_pokemon_data:
+                wild_pokemon = Pokemon(
+                    name=wild_pokemon_data["name"],
+                    hp=wild_pokemon_data["hp"],
+                    max_hp=wild_pokemon_data["hp"],
+                    attack=wild_pokemon_data["attack"],
+                    defense=wild_pokemon_data["defense"],
+                    sprite_path=wild_pokemon_data.get("sprite_path_front", "assets/sprites/default.png")  # ✅ Correction ici
+                )
 
-            combat_running = True
+            else:
+                print("⚠️ Erreur lors du chargement du Pokémon sauvage !")
+                return  # ✅ Stopper la rencontre si aucun sprite n'est trouvé
+
+            print(f"Un {wild_pokemon.name} sauvage apparaît avec sprite : {wild_pokemon.sprite_path}")  # ✅ Debug
+
+            combat = Combat(self.player.pokemons[0], wild_pokemon)
             combat_view = CombatView(self, combat)
 
+            combat_running = True
             while combat_running:
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
                         self.running = False
                         combat_running = False
-
                     elif event.type == pygame.MOUSEBUTTONDOWN:
                         action = combat_view.get_button_click(event.pos)
 
                         if action == "attack":
                             damage = combat.player_attack()
                             print(f"Vous infligez {damage} dégâts !")
+                            combat_view.trigger_attack_animation()
 
                             if combat.wild_pokemon.is_fainted():
-                                print("Pokémon sauvage KO !")
+                                print("Le Pokémon sauvage est KO !")
                                 combat_running = False
                             else:
+                                pygame.time.delay(500)
                                 damage = combat.wild_attack()
                                 print(f"Le Pokémon sauvage inflige {damage} dégâts !")
                                 if combat.player_pokemon.is_fainted():
@@ -142,13 +166,13 @@ class GameController:
                                 print("Vous avez fui !")
                                 combat_running = False
                             else:
-                                print("Échec de la fuite !")
+                                print("Fuite échouée !")
                                 damage = combat.wild_attack()
                                 print(f"Le Pokémon sauvage inflige {damage} dégâts !")
                                 if combat.player_pokemon.is_fainted():
                                     print("Votre Pokémon est KO !")
                                     combat_running = False
-                                    
+
                         elif action == "capture":
                             success = combat.attempt_capture(self.inventory)
                             if success:
