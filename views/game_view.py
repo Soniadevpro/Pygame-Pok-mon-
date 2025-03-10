@@ -6,46 +6,31 @@ class GameView:
         self.controller = controller
         self.tile_size = tile_size
         
-        # Dimensions de l'écran basées sur la taille de la carte
-        screen_width = controller.map.width * tile_size
-        screen_height = controller.map.height * tile_size
+        # Dimensions de l'écran
+        screen_width = 800  # Largeur fixe 
+        screen_height = 600  # Hauteur fixe
         
-        # Création de l'écran avec les dimensions correctes
+        # Création de l'écran avec les dimensions adaptées
         self.screen = pygame.display.set_mode((screen_width, screen_height))
         pygame.display.set_caption("Pokémon Game")
 
-        # Initialiser le dictionnaire de textures d'abord
-        self.textures = {}
-        
-        # Définir les chemins des fichiers de texture
-        texture_paths = {
-            "P": "assets/tiles/bat/pont.png",
-            "H": "assets/tiles/sols/herbe.png",  # Chemin corrigé pour l'herbe
-            "M": "assets/tiles/bat/ponton.png",
-            "C": "assets/tiles/bat/pokecenter.png",
-            "S": "assets/tiles/bat/pokeshop.png",
-            "A": "assets/tiles/arbres/arbre.png",
-            "W": "assets/tiles/sols/eau.png"
-        }
-        
-        # Créer une texture par défaut pour les textures manquantes
-        missing_texture = pygame.Surface((tile_size, tile_size))
-        missing_texture.fill((255, 0, 255))  # Rose vif pour repérer facilement
-        
-        # Charger chaque texture individuellement pour gérer les erreurs
-        for key, path in texture_paths.items():
-            try:
-                self.textures[key] = pygame.image.load(path).convert_alpha()
-                print(f"✅ Texture '{key}' chargée: {path}")
-            except FileNotFoundError:
-                self.textures[key] = missing_texture
-                print(f"⚠️ Texture '{key}' introuvable: {path}")
-        
-        # Redimensionner chaque texture pour qu'elle occupe exactement une tuile
-        for key in self.textures:
-            self.textures[key] = pygame.transform.scale(self.textures[key], (tile_size, tile_size))
-
         # Initialiser le dictionnaire des sprites
+        self.load_player_sprites()
+        
+        # Initialiser les variables d'animation
+        self.current_direction = "down"
+        self.current_frame = 0
+        self.animation_timer = 0
+        self.animation_speed = 150
+        self.is_moving = False
+        
+        # Polices pour le texte
+        self.font = pygame.font.Font(None, 24)
+        
+        print("✅ Vue du jeu initialisée")
+    
+    def load_player_sprites(self):
+        """Charge les sprites du joueur depuis les fichiers"""
         self.sprites = {}
         
         # Définir les chemins des fichiers de sprites
@@ -69,7 +54,7 @@ class GameView:
         }
         
         # Créer un sprite par défaut
-        default_sprite = pygame.Surface((int(tile_size * 0.8), int(tile_size * 0.8)))
+        default_sprite = pygame.Surface((int(self.tile_size * 0.8), int(self.tile_size * 0.8)))
         default_sprite.fill((255, 0, 0))  # Rouge pour le joueur
         
         # Charger chaque sprite individuellement
@@ -85,77 +70,123 @@ class GameView:
                 
                 # Redimensionner le sprite
                 new_width = int(self.tile_size * 0.8)
-                new_height = int(new_width * (sprite.get_height() / sprite.get_width()))
+                new_height = int(self.tile_size * 0.8)  # Utilisez directement la même largeur pour un ratio 1:1
                 self.sprites[direction].append(pygame.transform.scale(sprite, (new_width, new_height)))
 
-        self.current_direction = "down"
-        self.current_frame = 0
-        self.animation_timer = 0
-        self.animation_speed = 150
-        self.is_moving = False
-
     def render(self):
-        """ Rafraîchit l'écran et affiche la carte + Mew """
-        self.screen.fill((0, 0, 100))  # Fond bleu foncé (au cas où l'eau ne couvre pas tout)
-
-        # Affichage de la carte avec textures
-        for y, row in enumerate(self.controller.map.grid):
-            for x, tile in enumerate(row):
-                if tile in self.textures:
-                    # Dessiner chaque tuile à la position exacte
-                    self.screen.blit(self.textures[tile], (x * self.tile_size, y * self.tile_size))
-                else:
-                    # Dessiner un rectangle coloré pour les tuiles inconnues
-                    pygame.draw.rect(
-                        self.screen, 
-                        (255, 0, 255),  # Rose vif pour repérer facilement
-                        (x * self.tile_size, y * self.tile_size, self.tile_size, self.tile_size)
-                    )
-                    # Afficher le caractère de la tuile inconnue
-                    font = pygame.font.Font(None, 20)
-                    text = font.render(tile, True, (255, 255, 255))
-                    text_rect = text.get_rect(center=(
-                        x * self.tile_size + self.tile_size // 2,
-                        y * self.tile_size + self.tile_size // 2
-                    ))
-                    self.screen.blit(text, text_rect)
-
-        # Gestion de l'animation de Mew
+        """Rafraîchit l'écran et affiche la carte + le joueur"""
+        # Effacer l'écran
+        self.screen.fill((0, 0, 0))
+        
+        # Si nous avons une carte Tiled, utiliser sa méthode de rendu
+        if hasattr(self.controller.map, 'render'):
+            self.controller.map.render(self.screen)
+        else:
+            # Méthode alternative si nous n'utilisons pas Tiled
+            self._render_fallback_map()
+        
+        # Gestion de l'animation du joueur
         if self.is_moving:
             current_time = pygame.time.get_ticks()
             if current_time - self.animation_timer > self.animation_speed:
                 self.animation_timer = current_time
                 self.current_frame = (self.current_frame + 1) % len(self.sprites[self.current_direction])
         else:
-            self.current_frame = 0  # Mew reste statique s'il ne bouge pas
+            self.current_frame = 0  # Le joueur reste statique s'il ne bouge pas
 
-        # Affichage de Mew
-        player_x = self.controller.player.position[0] * self.tile_size
-        player_y = self.controller.player.position[1] * self.tile_size
+        # Affichage du joueur
         current_sprite = self.sprites[self.current_direction][self.current_frame]
 
-        # Centrer le sprite sur la tuile
-        offset_x = (self.tile_size - current_sprite.get_width()) // 2
-        offset_y = self.tile_size - current_sprite.get_height()
+        # Obtenir la position du joueur à l'écran (tenant compte du défilement)
+        if hasattr(self.controller.map, 'map_layer'):
+            # Si nous utilisons pyscroll, le joueur est centré
+            screen_center_x = self.screen.get_width() // 2
+            screen_center_y = self.screen.get_height() // 2
+            
+            # Centrer le sprite sur la tuile
+            offset_x = (self.tile_size - current_sprite.get_width()) // 2
+            offset_y = (self.tile_size - current_sprite.get_height()) // 2
+            
+            self.screen.blit(current_sprite, (screen_center_x - self.tile_size // 2 + offset_x, 
+                                              screen_center_y - self.tile_size // 2 + offset_y))
+        else:
+            # Méthode alternative sans pyscroll
+            player_x, player_y = self.controller.player.position
+            
+            # Centrer le sprite sur la tuile
+            offset_x = (self.tile_size - current_sprite.get_width()) // 2
+            offset_y = (self.tile_size - current_sprite.get_height()) // 2
+            
+            self.screen.blit(current_sprite, (player_x + offset_x, player_y + offset_y))
 
-        self.screen.blit(current_sprite, (player_x + offset_x, player_y + offset_y))
-
-        # Afficher des informations de débogage si nécessaire
-        font = pygame.font.Font(None, 24)
-        pos_text = font.render(f"Position: {self.controller.player.position}", True, (255, 255, 255))
-        self.screen.blit(pos_text, (10, 10))
-
+        # Afficher des informations de débogage
+        self._render_debug_info()
+        
         pygame.display.flip()  # Rafraîchir l'écran après chaque frame
+    
+    def _render_fallback_map(self):
+        """Méthode de secours pour afficher la carte si Tiled n'est pas utilisé"""
+        # Cette méthode utilise l'ancien système de rendu
+        for y, row in enumerate(self.controller.map.grid):
+            for x, tile in enumerate(row):
+                if hasattr(self, 'textures') and tile in self.textures:
+                    # Si nous avons des textures définies
+                    self.screen.blit(self.textures[tile], (x * self.tile_size, y * self.tile_size))
+                else:
+                    # Afficher des rectangles colorés pour les différents types de tuiles
+                    colors = {
+                        "W": (0, 0, 255),      # Eau (bleu)
+                        "G": (0, 200, 0),      # Herbe (vert)
+                        "P": (150, 120, 70),   # Chemin (marron)
+                        "A": (0, 100, 0),      # Arbre (vert foncé)
+                        "M": (150, 150, 150),  # Ponton (gris)
+                        "C": (255, 50, 50),    # Centre Pokémon (rouge)
+                        "S": (50, 50, 255),    # PokéMart (bleu)
+                        ".": (100, 100, 100)   # Défaut (gris)
+                    }
+                    
+                    color = colors.get(tile, (100, 100, 100))
+                    pygame.draw.rect(
+                        self.screen, 
+                        color, 
+                        (x * self.tile_size, y * self.tile_size, self.tile_size, self.tile_size)
+                    )
+                    
+                    # Afficher le caractère de la tuile
+                    text = self.font.render(tile, True, (255, 255, 255))
+                    text_rect = text.get_rect(center=(
+                        x * self.tile_size + self.tile_size // 2,
+                        y * self.tile_size + self.tile_size // 2
+                    ))
+                    self.screen.blit(text, text_rect)
+    
+    def _render_debug_info(self):
+        """Affiche des informations de débogage à l'écran"""
+        # Afficher la position du joueur
+        position_text = f"Position: ({self.controller.player.position[0]}, {self.controller.player.position[1]})"
+        position_surface = self.font.render(position_text, True, (255, 255, 255))
+        self.screen.blit(position_surface, (10, 10))
+        
+        # Afficher l'inventaire
+        inventory_text = f"Inventaire: {str(self.controller.inventory)}"
+        inventory_surface = self.font.render(inventory_text, True, (255, 255, 255))
+        self.screen.blit(inventory_surface, (10, 40))
+        
+        # Afficher les FPS
+        fps = int(self.controller.clock.get_fps())
+        fps_text = f"FPS: {fps}"
+        fps_surface = self.font.render(fps_text, True, (255, 255, 255))
+        self.screen.blit(fps_surface, (10, 70))
 
     def update_player_sprite(self, direction):
-        """ Change le sprite selon la direction de Mew et anime le mouvement """
+        """Change le sprite selon la direction du joueur et anime le mouvement"""
         if direction in self.sprites:
             self.current_direction = direction
             self.is_moving = True
             self.animation_timer = pygame.time.get_ticks()
 
     def stop_player_animation(self):
-        """ Arrête l'animation quand Mew ne bouge plus """
+        """Arrête l'animation quand le joueur ne bouge plus"""
         self.is_moving = False
         self.current_frame = 0
 

@@ -9,7 +9,7 @@ from models.combat import Combat
 from views.combat_view import CombatView
 from views.team_view import TeamView
 from utils.pokeapi import fetch_pokemon, fetch_trainer_sprite
-from utils.map_loader import TiledMap  # Notre nouveau chargeur de carte
+from utils.map_loader import TiledMap  # Notre chargeur de carte
 
 class GameController:
     def __init__(self):
@@ -23,20 +23,23 @@ class GameController:
         if not os.path.exists(map_path):
             print(f"⚠️ Le fichier de carte {map_path} n'existe pas. Créez-le avec Tiled.")
             print("⚠️ Utilisation d'une carte par défaut pour le moment.")
-            # À ce stade, vous pourriez générer une carte par défaut ou utiliser
-            # votre ancienne classe Map en attendant de créer une carte avec Tiled
+        
+        # Taille des tuiles de base pour le jeu
+        self.tile_size = 40
         
         try:
             # Charger la carte Tiled
             self.map = TiledMap(map_path)
-            self.tile_size = self.map.tile_width  # Utiliser la taille des tuiles de la carte
+            # Utiliser le facteur d'échelle pour la taille correcte des tuiles
+            if hasattr(self.map, 'scale_factor'):
+                self.tile_size = int(self.map.tile_width * self.map.scale_factor)
+                print(f"✅ Taille des tuiles mise à l'échelle: {self.tile_size}px")
         except Exception as e:
-            # En cas d'erreur, on pourrait revenir à l'ancienne méthode
+            # En cas d'erreur, on revient à l'ancienne méthode
             print(f"❌ Erreur lors du chargement de la carte Tiled: {e}")
             print("⚠️ Chargement d'une carte par défaut...")
             from models.map import Map  # Importation conditionnelle de l'ancienne Map
             self.map = Map(width=20, height=10)
-            self.tile_size = 40  # Taille par défaut
         
         # Position initiale du joueur (à partir de la carte ou par défaut)
         try:
@@ -147,7 +150,8 @@ class GameController:
             if current_time - last_move > move_cooldown:
                 keys = pygame.key.get_pressed()
                 dx, dy = 0, 0
-                move_speed = self.tile_size // 4  # Vitesse de déplacement
+                # Vitesse de déplacement adaptée à la taille des tuiles
+                move_speed = self.tile_size // 4  # Plus petite pour un mouvement plus fluide
 
                 if keys[pygame.K_LEFT]:
                     dx = -move_speed
@@ -168,8 +172,18 @@ class GameController:
                     new_x = self.player.position[0] + dx
                     new_y = self.player.position[1] + dy
                     
+                    # DEBUG - Afficher les positions pour le débogage
+                    print(f"Position actuelle: ({self.player.position[0]}, {self.player.position[1]})")
+                    print(f"Déplacement: ({dx}, {dy})")
+                    print(f"Nouvelle position: ({new_x}, {new_y})")
+                    
                     # Vérifier si la nouvelle position est praticable
-                    if hasattr(self.map, 'is_walkable') and self.map.is_walkable(new_x, new_y):
+                    can_move = True
+                    if hasattr(self.map, 'is_walkable'):
+                        can_move = self.map.is_walkable(new_x, new_y)
+                        print(f"Peut se déplacer: {can_move}")
+                    
+                    if can_move:
                         self.player.position = (new_x, new_y)
                         self.player_rect.x = new_x
                         self.player_rect.y = new_y
@@ -197,7 +211,7 @@ class GameController:
     def trigger_pokemon_encounter(self):
         """Déclenche une rencontre avec un Pokémon sauvage"""
         try:
-            # Liste de Pokémon possibles à rencontrer (possibilité d'adapter selon la zone)
+            # Liste de Pokémon possibles à rencontrer
             pokemon_options = ["rattata", "pidgey", "weedle", "caterpie"]
             wild_pokemon_name = random.choice(pokemon_options)
             
