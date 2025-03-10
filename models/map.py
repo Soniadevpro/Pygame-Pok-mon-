@@ -9,6 +9,16 @@ class Map:
         self.grid = [["." for _ in range(width)] for _ in range(height)]
         self.generate_grass()
         
+        self.grid = [
+            ["A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A"],
+            ["A", "P", "P", "P", "P", "P", "P", "P", "P", "P", "P", "P", "P", "P", "P", "P", "P", "P", "P", "A"],
+            ["A", "P", "H", "H", "H", "P", "M", "M", "M", "P", "C", "C", "C", "P", "S", "S", "S", "P", "P", "A"],
+            ["A", "P", "H", "H", "H", "P", "M", "M", "M", "P", "C", "C", "C", "P", "S", "S", "S", "P", "P", "A"],
+            ["A", "P", "P", "P", "P", "P", "P", "P", "P", "P", "P", "P", "P", "P", "P", "P", "P", "P", "P", "A"],
+            ["A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A"],
+        ]
+    
+        
         
     def generate_grass(self):
         
