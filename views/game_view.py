@@ -74,7 +74,7 @@ class GameView:
 
         self.screen.blit(current_sprite, (player_x + offset_x, player_y + offset_y))
 
-        pygame.display.flip()  # Rafraîchir l'affichage
+          
 
     def update_player_sprite(self, direction):
         """ Change le sprite selon la direction de Mew et anime le mouvement """

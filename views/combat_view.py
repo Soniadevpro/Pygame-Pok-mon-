@@ -14,12 +14,9 @@ class CombatView:
         # button capture
         self.capture_button = pygame.Rect(350, 500, 120, 40)
         
-        
-        
     def render(self):
         self.screen.fill((30, 30, 30))
         
-
         # Pokémon du joueur
         player_pokemon_text = self.font.render(
             f"Votre Pokémon : {self.combat.player_pokemon.name} HP: {self.combat.player_pokemon.hp}/{self.combat.player_pokemon.max_hp}",
@@ -34,19 +31,20 @@ class CombatView:
         )
         self.screen.blit(wild_pokemon_text, (50, 50))
         
-        
-        # Draw buttons
-        pygame.draw.rect(self.screen, (0, 200, 0), self.attack_button)
-        pygame.draw.rect(self.screen, (200, 0, 0), self.run_button)
-        
-        
-        # Draw text on buttons
+        # Préparer les textes des boutons AVANT de les utiliser
         attack_text = self.font.render("Attaque", True, (255, 255, 255))
         run_text = self.font.render("Fuite", True, (255, 255, 255))
-        
-        #capture button
-        pygame.draw.rect(self.screen, (0, 0, 200), self.capture_button)
         capture_text = self.font.render("Capture", True, (255, 255, 255))
+        
+        # Dessiner les boutons
+        pygame.draw.rect(self.screen, (0, 200, 0), self.attack_button)
+        self.screen.blit(attack_text, (self.attack_button.x + 10, self.attack_button.y + 10))
+        
+        pygame.draw.rect(self.screen, (200, 0, 0), self.run_button)
+        self.screen.blit(run_text, (self.run_button.x + 10, self.run_button.y + 10))
+        
+        # Bouton capture
+        pygame.draw.rect(self.screen, (0, 0, 200), self.capture_button)
         self.screen.blit(capture_text, (self.capture_button.x + 10, self.capture_button.y + 10))
         
         pygame.display.flip()
