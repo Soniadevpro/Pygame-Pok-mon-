@@ -9,52 +9,61 @@ from models.combat import Combat
 from views.combat_view import CombatView
 from views.team_view import TeamView
 from utils.pokeapi import fetch_pokemon, fetch_trainer_sprite
-from utils.map_loader import TiledMap  # Notre chargeur de carte
+
+# Importer les deux types de cartes
+try:
+    from utils.map_loader import TiledMap
+    USE_TILED = True
+except ImportError:
+    USE_TILED = False
+    print("⚠️ Module pytmx non trouvé. Utilisation de la carte traditionnelle.")
+from models.map import Map  # Toujours importer la carte traditionnelle comme fallback
 
 class GameController:
     def __init__(self):
         pygame.init()
         
-        # Créer le dossier de cartes s'il n'existe pas
-        os.makedirs("assets/maps", exist_ok=True)
-        
-        # Vérifier si le fichier de carte existe
-        map_path = "assets/maps/pokemon_map.tmx"
-        if not os.path.exists(map_path):
-            print(f"⚠️ Le fichier de carte {map_path} n'existe pas. Créez-le avec Tiled.")
-            print("⚠️ Utilisation d'une carte par défaut pour le moment.")
-        
-        # Taille des tuiles de base pour le jeu
+        # Taille des tuiles en pixels
         self.tile_size = 40
         
+        # Carte Tiled ou traditionnelle
+        self.using_tiled = False
         try:
-            # Charger la carte Tiled
-            self.map = TiledMap(map_path)
-            # Utiliser le facteur d'échelle pour la taille correcte des tuiles
-            if hasattr(self.map, 'scale_factor'):
-                self.tile_size = int(self.map.tile_width * self.map.scale_factor)
-                print(f"✅ Taille des tuiles mise à l'échelle: {self.tile_size}px")
+            if USE_TILED:
+                map_path = "assets/maps/pokemon_map.tmx"
+                if os.path.exists(map_path):
+                    self.map = TiledMap(map_path)
+                    self.using_tiled = True
+                    print("✅ Carte Tiled chargée avec succès")
+                    # Ajuster la taille des tuiles selon le facteur d'échelle
+                    if hasattr(self.map, 'real_tile_width'):
+                        self.tile_size = self.map.real_tile_width
+                        print(f"✅ Taille des tuiles ajustée à {self.tile_size}px")
+                else:
+                    raise FileNotFoundError(f"Le fichier de carte {map_path} n'existe pas.")
         except Exception as e:
-            # En cas d'erreur, on revient à l'ancienne méthode
-            print(f"❌ Erreur lors du chargement de la carte Tiled: {e}")
-            print("⚠️ Chargement d'une carte par défaut...")
-            from models.map import Map  # Importation conditionnelle de l'ancienne Map
+            print(f"❌ Impossible d'utiliser la carte Tiled: {e}")
+            # Fallback vers la carte traditionnelle
             self.map = Map(width=20, height=10)
+            print("✅ Carte traditionnelle chargée (fallback)")
         
-        # Position initiale du joueur (à partir de la carte ou par défaut)
+        # Position initiale du joueur
         try:
-            spawn_x, spawn_y = self.map.get_spawn_position()
-            print(f"Position initiale du joueur: ({spawn_x}, {spawn_y})")
-        except AttributeError:
-            # Si nous utilisons l'ancienne classe Map, définir une position par défaut
-            spawn_x, spawn_y = 5 * self.tile_size, 5 * self.tile_size
-            print(f"Position par défaut du joueur: ({spawn_x}, {spawn_y})")
-        
-        # Initialiser le joueur
+            if self.using_tiled and hasattr(self.map, 'get_spawn_position'):
+                spawn_x, spawn_y = self.map.get_spawn_position()
+                print(f"✅ Position initiale du joueur (Tiled): ({spawn_x}, {spawn_y})")
+            else:
+                # Position au centre approximatif pour la carte traditionnelle
+                spawn_x, spawn_y = 400, 300
+                print(f"✅ Position initiale du joueur (traditionnelle): ({spawn_x}, {spawn_y})")
+        except Exception as e:
+            print(f"❌ Erreur lors de la récupération du point de départ: {e}")
+            spawn_x, spawn_y = 400, 300
+            
+        # Initialiser le joueur avec la position de départ
         self.player = Player(name="Sacha", position=(spawn_x, spawn_y))
         self.inventory = Inventory()
-        self.running = True
-        self.clock = pygame.time.Clock()
+        self.inventory.add_item("Pokeball", 5)
         
         # Rectangle pour les collisions
         self.player_rect = pygame.Rect(
@@ -64,30 +73,25 @@ class GameController:
             self.tile_size
         )
         
-        # Initialiser le sprite du dresseur
-        self._init_trainer_sprite()
+        # Autres initialisations
+        self.running = True
+        self.clock = pygame.time.Clock()
         
-        # Initialiser les Pokémon du joueur
-        self._init_player_pokemon()
+        # Charger les Pokémon
+        self._init_pokemon_team()
         
         # Initialiser les vues
         self.view = GameView(self, self.tile_size)
         self.team_view = TeamView(self)
-    
-    def _init_trainer_sprite(self):
-        """Initialise le sprite du dresseur"""
-        try:
-            trainer_sprite_path = fetch_trainer_sprite("red")
-            self.trainer_sprite = pygame.image.load(trainer_sprite_path)
-            self.trainer_sprite = pygame.transform.scale(self.trainer_sprite, (self.tile_size, self.tile_size))
-        except Exception as e:
-            print(f"❌ Erreur lors du chargement du sprite du dresseur: {e}")
-            # Créer un sprite par défaut
-            self.trainer_sprite = pygame.Surface((self.tile_size, self.tile_size))
-            self.trainer_sprite.fill((255, 0, 0))
-    
-    def _init_player_pokemon(self):
-        """Initialise les Pokémon du joueur"""
+        
+        # Variables pour le débogage du mouvement
+        self.debug_movement = True
+        
+        # Variables pour les rencontres Pokémon
+        self.encounter_cooldown = 0  # Pour éviter des rencontres trop fréquentes
+        
+    def _init_pokemon_team(self):
+        """Initialise l'équipe Pokémon du joueur"""
         try:
             pikachu_data = fetch_pokemon("pikachu")
             if pikachu_data:
@@ -103,11 +107,9 @@ class GameController:
                 self.player.add_pokemon(starter_pokemon)
                 print(f"✅ Pokémon dans l'équipe : {[p.name for p in self.player.pokemons]}")
             else:
-                # Créer un Pokémon par défaut si l'API échoue
                 self._add_default_pokemon()
         except Exception as e:
             print(f"❌ Erreur lors de la récupération du Pokémon: {e}")
-            # Créer un Pokémon par défaut en cas d'erreur
             self._add_default_pokemon()
     
     def _add_default_pokemon(self):
@@ -126,172 +128,253 @@ class GameController:
     
     def run(self):
         """Boucle principale du jeu"""
-        move_cooldown = 150  # Délai entre les mouvements (en millisecondes)
-        last_move = pygame.time.get_ticks()
-        is_key_pressed = False
-
+        # Vitesse de déplacement en pixels par touche
+        move_speed = 10
+        
+        last_position = self.player.position
+        
         while self.running:
-            current_time = pygame.time.get_ticks()
+            # Diminuer le cooldown des rencontres
+            if self.encounter_cooldown > 0:
+                self.encounter_cooldown -= 1
             
+            # Gestion des événements
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
                 elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_t:
+                    if event.key == pygame.K_ESCAPE:
+                        self.running = False
+                    elif event.key == pygame.K_t:
                         self.team_view.visible = not self.team_view.visible
-                    elif event.key in [pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_DOWN]:
-                        is_key_pressed = True
-                elif event.type == pygame.KEYUP:
-                    if event.key in [pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_DOWN]:
-                        is_key_pressed = False
-                        self.view.stop_player_animation()
-
-            # Gestion du mouvement avec vérification des collisions
-            if current_time - last_move > move_cooldown:
-                keys = pygame.key.get_pressed()
-                dx, dy = 0, 0
-                # Vitesse de déplacement adaptée à la taille des tuiles
-                move_speed = self.tile_size // 4  # Plus petite pour un mouvement plus fluide
-
-                if keys[pygame.K_LEFT]:
-                    dx = -move_speed
-                    self.view.update_player_sprite("left")
-                elif keys[pygame.K_RIGHT]:
-                    dx = move_speed
-                    self.view.update_player_sprite("right")
-                elif keys[pygame.K_UP]:
-                    dy = -move_speed
-                    self.view.update_player_sprite("up")
-                elif keys[pygame.K_DOWN]:
-                    dy = move_speed
-                    self.view.update_player_sprite("down")
+                    elif event.key == pygame.K_d:
+                        # Activer/désactiver le débogage
+                        self.debug_movement = not self.debug_movement
+                        print(f"🐛 Débogage {'activé' if self.debug_movement else 'désactivé'}")
+                        
+            # Gestion du mouvement
+            keys = pygame.key.get_pressed()
+            dx, dy = 0, 0
+            
+            if keys[pygame.K_LEFT]:
+                dx = -move_speed
+                self.view.update_player_sprite("left")
+            elif keys[pygame.K_RIGHT]:
+                dx = move_speed
+                self.view.update_player_sprite("right")
+            elif keys[pygame.K_UP]:
+                dy = -move_speed
+                self.view.update_player_sprite("up")
+            elif keys[pygame.K_DOWN]:
+                dy = move_speed
+                self.view.update_player_sprite("down")
+            else:
+                self.view.is_moving = False
+            
+            # Appliquer le déplacement si possible
+            if dx != 0 or dy != 0:
+                new_x = self.player.position[0] + dx
+                new_y = self.player.position[1] + dy
+                
+                # Mise à jour du rectangle du joueur pour les collisions
+                new_rect = pygame.Rect(new_x, new_y, self.tile_size, self.tile_size)
+                
+                # Vérifier si la position est valide selon le type de carte
+                is_valid = False
+                
+                if self.using_tiled:
+                    is_valid = self.map.is_walkable(new_x, new_y)
                 else:
-                    self.view.is_moving = False
-
-                if dx != 0 or dy != 0:
-                    new_x = self.player.position[0] + dx
-                    new_y = self.player.position[1] + dy
+                    # Pour la carte traditionnelle
+                    grid_x = new_x // self.tile_size
+                    grid_y = new_y // self.tile_size
                     
-                    # DEBUG - Afficher les positions pour le débogage
-                    print(f"Position actuelle: ({self.player.position[0]}, {self.player.position[1]})")
-                    print(f"Déplacement: ({dx}, {dy})")
-                    print(f"Nouvelle position: ({new_x}, {new_y})")
+                    # Vérifier les limites de la carte
+                    valid_position = (0 <= grid_x < self.map.width and 
+                                     0 <= grid_y < self.map.height)
                     
-                    # Vérifier si la nouvelle position est praticable
-                    can_move = True
-                    if hasattr(self.map, 'is_walkable'):
-                        can_move = self.map.is_walkable(new_x, new_y)
-                        print(f"Peut se déplacer: {can_move}")
+                    if valid_position:
+                        is_valid = self.map.is_walkable(grid_x, grid_y)
+                
+                # Appliquer le déplacement si la position est valide
+                
                     
-                    if can_move:
-                        self.player.position = (new_x, new_y)
-                        self.player_rect.x = new_x
-                        self.player_rect.y = new_y
-                        
-                        # Mettre à jour la vue de la carte pour centrer sur le joueur
-                        if hasattr(self.map, 'update'):
+                    self.player_rect.x = new_x
+                    self.player_rect.y = new_y
+                    # Mettre à jour la caméra pour la carte Tiled
+                    if self.using_tiled and hasattr(self.map, 'update'):
+                        try:
                             self.map.update(self.player_rect)
-                        
-                        # Vérifier les rencontres de Pokémon
-                        if hasattr(self.map, 'is_grass') and self.map.is_grass(new_x, new_y):
-                            if random.random() < 0.05:  # 5% de chance de rencontre
-                                self.trigger_pokemon_encounter()
+                            if self.debug_movement:
+                                print(f"🎮 Mise à jour de la caméra à ({new_x}, {new_y})")
+                        except Exception as e:
+                            print(f"❌ Erreur lors de la mise à jour de la caméra: {e}")
                     
-                    last_move = current_time
-
-            # Rendu de l'écran
+                    # Vérifier les rencontres Pokémon dans l'herbe
+                    self._check_pokemon_encounter(new_x, new_y)
+                    
+                    # Débogage du mouvement
+                    if self.debug_movement and self.player.position != last_position:
+                        print(f"Nouvelle position: {self.player.position}")
+                        last_position = self.player.position
+            
+            # Rendu
             self.view.render()
+            
+            # Afficher l'équipe si nécessaire
             if self.team_view.visible:
                 self.team_view.render()
             
-            self.clock.tick(60)  # 60 FPS
-
+            # Rafraîchir l'écran et limiter les FPS
+            pygame.display.flip()
+            self.clock.tick(60)
+        
+        # Nettoyage
         pygame.quit()
-
-    def trigger_pokemon_encounter(self):
-        """Déclenche une rencontre avec un Pokémon sauvage"""
-        try:
-            # Liste de Pokémon possibles à rencontrer
-            pokemon_options = ["rattata", "pidgey", "weedle", "caterpie"]
-            wild_pokemon_name = random.choice(pokemon_options)
+    
+    def _check_pokemon_encounter(self, x, y):
+        """Vérifie si une rencontre Pokémon doit se déclencher"""
+        if self.encounter_cooldown > 0:
+            return
+        
+        is_in_grass = False
+        
+        if self.using_tiled:
+            is_in_grass = self.map.is_grass(x, y)
+        else:
+            # Pour la carte traditionnelle
+            grid_x = x // self.tile_size
+            grid_y = y // self.tile_size
             
-            wild_pokemon_data = fetch_pokemon(wild_pokemon_name)
-            if wild_pokemon_data:
+            if 0 <= grid_x < self.map.width and 0 <= grid_y < self.map.height:
+                is_in_grass = self.map.is_grass(grid_x, grid_y)
+        
+        if is_in_grass and random.random() < 0.1:  # 10% de chance
+            print("🌿 Rencontre dans l'herbe!")
+            self._trigger_pokemon_encounter()
+            self.encounter_cooldown = 30  # Environ 0.5 seconde à 60 FPS
+    
+    def _trigger_pokemon_encounter(self):
+        """Déclenche une rencontre avec un Pokémon sauvage"""
+        # Liste de Pokémon sauvages possibles
+        wild_pokemon_options = [
+            {"name": "rattata", "level": 5},
+            {"name": "pidgey", "level": 4},
+            {"name": "caterpie", "level": 3},
+            {"name": "weedle", "level": 3}
+        ]
+        
+        # Sélectionner un Pokémon au hasard
+        pokemon_data = random.choice(wild_pokemon_options)
+        
+        try:
+            # Récupérer les données du Pokémon
+            fetched_pokemon = fetch_pokemon(pokemon_data["name"])
+            
+            if fetched_pokemon:
+                level_multiplier = pokemon_data["level"] / 5  # Ajuster selon le niveau
+                
                 wild_pokemon = Pokemon(
-                    name=wild_pokemon_data["name"],
-                    hp=wild_pokemon_data["hp"],
-                    max_hp=wild_pokemon_data["hp"],
-                    attack=wild_pokemon_data["attack"],
-                    defense=wild_pokemon_data["defense"],
-                    sprite_path=wild_pokemon_data.get("sprite_path_front", "assets/sprites/default.png")
+                    name=fetched_pokemon["name"],
+                    hp=int(fetched_pokemon["hp"] * level_multiplier),
+                    max_hp=int(fetched_pokemon["hp"] * level_multiplier),
+                    attack=int(fetched_pokemon["attack"] * level_multiplier),
+                    defense=int(fetched_pokemon["defense"] * level_multiplier),
+                    sprite_path=fetched_pokemon["sprite_path_front"]
                 )
                 
                 print(f"Un {wild_pokemon.name} sauvage apparaît!")
-
+                
+                # Initialiser le combat
                 combat = Combat(self.player.pokemons[0], wild_pokemon)
                 combat_view = CombatView(self, combat)
-
+                
+                # Démarrer la boucle de combat
                 self._handle_combat(combat, combat_view)
+            
         except Exception as e:
-            print(f"❌ Erreur lors de la rencontre avec un Pokémon sauvage: {e}")
+            print(f"❌ Erreur lors de la rencontre Pokémon: {e}")
     
     def _handle_combat(self, combat, combat_view):
-        """Gère le déroulement d'un combat"""
+        """Gère la boucle de combat"""
         combat_running = True
+        
         while combat_running and self.running:
+            # Gestion des événements pendant le combat
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
                     combat_running = False
+                elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    combat_running = False
                 elif event.type == pygame.MOUSEBUTTONDOWN:
+                    # Récupérer l'action du joueur
                     action = combat_view.get_button_click(event.pos)
-
+                    
                     if action == "attack":
+                        # Attaque du joueur
                         damage = combat.player_attack()
                         print(f"Vous infligez {damage} dégâts !")
                         combat_view.trigger_attack_animation()
-
+                        
+                        # Vérifier si le Pokémon sauvage est K.O.
                         if combat.wild_pokemon.is_fainted():
-                            print("Le Pokémon sauvage est KO !")
+                            print("Le Pokémon sauvage est K.O. !")
                             combat_running = False
                         else:
+                            # Contre-attaque du Pokémon sauvage
                             pygame.time.delay(500)
                             damage = combat.wild_attack()
                             print(f"Le Pokémon sauvage inflige {damage} dégâts !")
+                            
+                            # Vérifier si le Pokémon du joueur est K.O.
                             if combat.player_pokemon.is_fainted():
-                                print("Votre Pokémon est KO !")
+                                print("Votre Pokémon est K.O. !")
                                 combat_running = False
-
+                    
                     elif action == "run":
+                        # Tentative de fuite
                         if combat.player_run():
                             print("Vous avez fui !")
                             combat_running = False
                         else:
                             print("Fuite échouée !")
+                            # Attaque du Pokémon sauvage
                             damage = combat.wild_attack()
                             print(f"Le Pokémon sauvage inflige {damage} dégâts !")
+                            
                             if combat.player_pokemon.is_fainted():
-                                print("Votre Pokémon est KO !")
+                                print("Votre Pokémon est K.O. !")
                                 combat_running = False
-
+                    
                     elif action == "capture":
+                        # Tentative de capture
                         success = combat.attempt_capture(self.inventory)
+                        
                         if success:
+                            # Ajout à l'équipe si possible
                             added = self.player.add_pokemon(combat.wild_pokemon)
+                            
                             if added:
                                 print(f"Bravo ! {combat.wild_pokemon.name} capturé !")
                             else:
                                 print("Équipe pleine, capture impossible !")
+                            
                             combat_running = False
                         else:
                             print("Capture échouée !")
+                            # Attaque du Pokémon sauvage
                             damage = combat.wild_attack()
                             print(f"Le Pokémon sauvage inflige {damage} dégâts !")
+                            
                             if combat.player_pokemon.is_fainted():
-                                print("Votre Pokémon est KO !")
+                                print("Votre Pokémon est K.O. !")
                                 combat_running = False
-
+            
+            # Rendu de l'écran de combat
             combat_view.render()
+            
+            # Limitation FPS
             self.clock.tick(30)
 
 
