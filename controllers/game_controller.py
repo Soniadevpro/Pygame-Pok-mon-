@@ -208,11 +208,20 @@ class GameController:
                     # Mettre à jour la caméra pour la carte Tiled
                     if self.using_tiled and hasattr(self.map, 'update'):
                         try:
-                            self.map.update(self.player_rect)
-                            if self.debug_movement:
-                                print(f"🎮 Mise à jour de la caméra à ({new_x}, {new_y})")
+                            # Force le rectangle du joueur à utiliser le centre
+                            player_center_rect = pygame.Rect(
+                                new_x - (self.tile_size // 2),
+                                new_y - (self.tile_size // 2),
+                                self.tile_size,
+                                self.tile_size
+                            )
+                            
+                            self.map.update(player_center_rect)
+                            print(f"🎮 Mise à jour de la caméra à ({new_x}, {new_y})")
                         except Exception as e:
                             print(f"❌ Erreur lors de la mise à jour de la caméra: {e}")
+                            import traceback
+                            traceback.print_exc()
                     
                     # Vérifier les rencontres Pokémon dans l'herbe
                     self._check_pokemon_encounter(new_x, new_y)
@@ -253,11 +262,15 @@ class GameController:
             if 0 <= grid_x < self.map.width and 0 <= grid_y < self.map.height:
                 is_in_grass = self.map.is_grass(grid_x, grid_y)
         
-        # Réduire la probabilité de rencontre et ajouter un cooldown plus long
-        if is_in_grass and random.random() < 0.02:  # Changé de 0.1 à 0.02
-            print("🌿 Rencontre dans l'herbe!")
+        # Déboguer si le joueur est dans l'herbe
+        if is_in_grass and self.debug_movement:
+            print("🌿 Joueur dans les hautes herbes!")
+        
+        # Chance de rencontre uniquement dans les hautes herbes
+        if is_in_grass and random.random() < 0.03:  # 3% de chance par pas
+            print("🌿 Rencontre dans les hautes herbes!")
             self._trigger_pokemon_encounter()
-            self.encounter_cooldown = 100  # Augmenté de 30 à 100 (environ 1-2 secondes à 60 FPS)
+            self.encounter_cooldown = 60  # Environ 1 seconde à 60 FPS
     
     def _trigger_pokemon_encounter(self):
         """Déclenche une rencontre avec un Pokémon sauvage"""

@@ -32,6 +32,11 @@ class GameView:
         # Police pour les textes de débogage
         self.font = pygame.font.Font(None, 24)
         
+        # Variables pour l'effet des hautes herbes
+        self.in_grass_effect = False
+        self.grass_effect_timer = 0
+        self.grass_effect_duration = 15  # Durée de l'effet en frames
+        
         print(f"✅ Vue du jeu initialisée (mode {'Tiled' if self.controller.using_tiled else 'Traditionnel'})")
     
     def create_textures(self):
@@ -154,23 +159,92 @@ class GameView:
         
         # Afficher le joueur
         if self.controller.using_tiled:
-            # En mode Tiled, le joueur est toujours au centre de l'écran
-            center_x = self.screen_width // 2
-            center_y = self.screen_height // 2
+            # En mode Tiled avec une caméra style Pokémon
+            player_x, player_y = self.controller.player.position
             
-            # Ajuster le positionnement du sprite
+            # Récupérer les coordonnées de la caméra
+            camera_x = self.controller.map.camera_x
+            camera_y = self.controller.map.camera_y
+            
+            # Calculer la position du joueur à l'écran
+            screen_x = player_x - camera_x
+            screen_y = player_y - camera_y
+            
+            # Dessiner le joueur à la position relative à l'écran
             sprite_rect = current_sprite.get_rect()
-            sprite_rect.centerx = center_x
-            sprite_rect.centery = center_y
-            
+            sprite_rect.centerx = screen_x
+            sprite_rect.centery = screen_y
             self.screen.blit(current_sprite, sprite_rect)
             
-            # Debug: dessiner un repère pour le centre de l'écran
-            pygame.draw.circle(self.screen, (255, 0, 0), (center_x, center_y), 3)
+            # Debug - afficher des informations supplémentaires
+            if self.controller.debug_movement:
+                # Position du joueur à l'écran
+                pygame.draw.circle(self.screen, (255, 0, 0), (int(screen_x), int(screen_y)), 3)
+                
+                # Coordonnées du joueur
+                pos_text = f"Pos: ({player_x}, {player_y})"
+                pos_surf = self.font.render(pos_text, True, (255, 255, 0))
+                self.screen.blit(pos_surf, (10, self.screen_height - 60))
+                
+                # Coordonnées caméra
+                cam_text = f"Cam: ({int(camera_x)}, {int(camera_y)})"
+                cam_surf = self.font.render(cam_text, True, (255, 255, 0))
+                self.screen.blit(cam_surf, (10, self.screen_height - 30))
+                
+                # Zone limite où la caméra commence à suivre le joueur
+                edge_margin_x = self.screen_width * 0.25
+                edge_margin_y = self.screen_height * 0.25
+                
+                # Rectangle montrant la zone "morte" où la caméra ne bouge pas
+                pygame.draw.rect(self.screen, (0, 255, 0), 
+                                (edge_margin_x, edge_margin_y, 
+                                 self.screen_width - (2 * edge_margin_x), 
+                                 self.screen_height - (2 * edge_margin_y)), 
+                                 2)
         else:
             # En mode traditionnel, le joueur est à sa position absolue
             player_x, player_y = self.controller.player.position
             self.screen.blit(current_sprite, (player_x, player_y))
+        
+        # Vérifier si le joueur est dans les hautes herbes
+        is_in_grass = False
+        if self.controller.using_tiled:
+            is_in_grass = self.controller.map.is_grass(player_x, player_y)
+        else:
+            grid_x = player_x // self.tile_size
+            grid_y = player_y // self.tile_size
+            if 0 <= grid_x < self.controller.map.width and 0 <= grid_y < self.controller.map.height:
+                is_in_grass = self.controller.map.is_grass(grid_x, grid_y)
+        
+        # Effet visuel lorsque le joueur est dans les hautes herbes
+        if is_in_grass and self.is_moving:
+            # Activer l'effet
+            self.in_grass_effect = True
+            self.grass_effect_timer = self.grass_effect_duration
+        
+        # Gérer l'effet des hautes herbes
+        if self.in_grass_effect and self.grass_effect_timer > 0:
+            # Dessiner de petits points verts autour du joueur
+            if self.controller.using_tiled:
+                screen_x = player_x - self.controller.map.camera_x
+                screen_y = player_y - self.controller.map.camera_y
+            else:
+                screen_x, screen_y = player_x, player_y
+            
+            # Points aléatoires autour du joueur
+            for _ in range(3):
+                offset_x = random.randint(-10, 10)
+                offset_y = random.randint(-10, 10)
+                point_x = int(screen_x + offset_x)
+                point_y = int(screen_y + offset_y)
+                
+                # Dessiner un petit point vert
+                pygame.draw.circle(self.screen, (0, 200, 0), (point_x, point_y), 1)
+            
+            # Diminuer le timer de l'effet
+            self.grass_effect_timer -= 1
+            if self.grass_effect_timer <= 0:
+                self.in_grass_effect = False
         
         # Afficher les informations de débogage
         self._draw_debug_info()
@@ -178,7 +252,27 @@ class GameView:
     def _render_tiled_map(self):
         """Affiche la carte Tiled"""
         if hasattr(self.controller.map, 'render'):
-            self.controller.map.render(self.screen)
+            try:
+                # Appliquer les mises à jour du groupe avant de rendre
+                self.controller.map.group.update()
+                
+                # Rendre la carte avec le groupe mis à jour
+                self.controller.map.group.draw(self.screen)
+                
+                # Affichage de débogage pour visualiser la position
+                if self.controller.debug_movement:
+                    center_x = self.screen_width // 2
+                    center_y = self.screen_height // 2
+                    # Dessiner une grille pour aider à visualiser le mouvement
+                    for x in range(0, self.screen_width, self.tile_size):
+                        pygame.draw.line(self.screen, (100, 100, 100), (x, 0), (x, self.screen_height), 1)
+                    for y in range(0, self.screen_height, self.tile_size):
+                        pygame.draw.line(self.screen, (100, 100, 100), (0, y), (self.screen_width, y), 1)
+            except Exception as e:
+                print(f"❌ Erreur lors du rendu de la carte Tiled: {e}")
+                import traceback
+                traceback.print_exc()
+                self.screen.fill((135, 206, 235))  # Bleu ciel en cas d'erreur
         else:
             # Fallback au cas où render n'existe pas
             self.screen.fill((135, 206, 235))  # Bleu ciel
@@ -249,6 +343,12 @@ class GameView:
         fps_text = f"FPS: {fps}"
         fps_surface = self.font.render(fps_text, True, (255, 255, 255))
         self.screen.blit(fps_surface, (10, 100))
+        
+        # Indication si le joueur est dans l'herbe
+        is_in_grass = self.controller.map.is_grass(player_x, player_y) if self.controller.using_tiled else False
+        grass_text = f"Dans l'herbe: {'Oui' if is_in_grass else 'Non'}"
+        grass_surface = self.font.render(grass_text, True, (0, 255, 0) if is_in_grass else (255, 255, 255))
+        self.screen.blit(grass_surface, (10, 130))
         
         # Instruction
         help_text = "Flèches=déplacement | T=équipe | D=debug | ESC=quitter"

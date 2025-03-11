@@ -2,6 +2,7 @@ import pygame
 import pytmx
 import pyscroll
 import os
+import random
 
 class TiledMap:
     def __init__(self, filename):
@@ -15,6 +16,14 @@ class TiledMap:
             pygame.init()
         if pygame.display.get_surface() is None:
             temp_surface = pygame.display.set_mode((1, 1))
+        
+        # Taille de l'écran pour le centrage de la caméra
+        self.screen_width = 800
+        self.screen_height = 600
+        
+        # Variables pour stocker la position de la caméra
+        self.camera_x = 0
+        self.camera_y = 0
         
         # Charger les données de la carte TMX
         try:
@@ -37,11 +46,24 @@ class TiledMap:
         self.real_tile_width = int(self.tile_width * self.scale_factor)
         self.real_tile_height = int(self.tile_height * self.scale_factor)
         
+        # Calculer les dimensions réelles de la carte en pixels
+        self.map_width_px = self.width * self.real_tile_width
+        self.map_height_px = self.height * self.real_tile_height
+        print(f"📏 Dimensions carte en pixels : {self.map_width_px}x{self.map_height_px}")
+        
+        # Détecter automatiquement les offsets si nécessaire
+        # Ces valeurs peuvent être ajustées pour compenser les décalages
+        self.offset_x = 0
+        self.offset_y = 0
+        
+        # IMPORTANT: NE PAS réduire la hauteur de la carte
+        # self.map_height_px -= 2 * self.real_tile_height  # Cette ligne a été supprimée
+        
         # Créer un gestionnaire de rendu avec pyscroll avec mise à l'échelle
         map_data = pyscroll.data.TiledMapData(self.tmx_data)
         self.map_layer = pyscroll.orthographic.BufferedRenderer(
             map_data, 
-            (800, 600),  # Taille de la fenêtre de jeu
+            (self.screen_width, self.screen_height),  # Utiliser les variables de classe
             zoom=self.scale_factor
         )
         
@@ -85,47 +107,116 @@ class TiledMap:
         self.group.draw(screen)
     
     def update(self, player_rect):
-        """Met à jour le défilement de la carte en centrant sur le joueur"""
+        """
+        Met à jour la caméra style Pokémon: le joueur se déplace librement 
+        et la caméra ne bouge que lorsqu'il s'approche des bords
+        """
         try:
-            # Calculer le centre de l'écran
-            screen_center_x = 400  # Moitié de 800
-            screen_center_y = 300  # Moitié de 600
+            # Récupérer les coordonnées du joueur
+            player_x, player_y = player_rect.centerx, player_rect.centery
             
-            # Centrer la caméra sur le joueur
-            self.group.center((screen_center_x, screen_center_y))
+            # --- Logique de caméra style Pokémon ---
+            # Ne déplacer la caméra que lorsque le joueur s'approche des bords
+            # Zones de déclenchement des bords (25% de l'écran depuis les bords)
+            edge_margin_x = self.screen_width * 0.25
+            edge_margin_y = self.screen_height * 0.25
             
-            # Ajuster la position de la vue pour suivre le joueur
-            self.map_layer.set_center(
-                player_rect.centerx, 
-                player_rect.centery
-            )
+            # Initialiser les variables de caméra si ce n'est pas déjà fait
+            if not hasattr(self, 'camera_x') or not hasattr(self, 'camera_y'):
+                self.camera_x = player_x - (self.screen_width // 2)
+                self.camera_y = player_y - (self.screen_height // 2)
             
-            # Mettre à jour le groupe
-            self.group.update()
+            # Position du joueur par rapport à l'écran
+            screen_x = player_x - self.camera_x
+            screen_y = player_y - self.camera_y
             
-            print(f"🎮 Mise à jour de la caméra centrée sur {player_rect.center}")
+            # Vérifier si le joueur s'approche des bords et ajuster la caméra
+            camera_moved = False
+            
+            # Bord droit
+            if screen_x > self.screen_width - edge_margin_x:
+                self.camera_x = player_x - (self.screen_width - edge_margin_x)
+                camera_moved = True
+            
+            # Bord gauche
+            elif screen_x < edge_margin_x:
+                self.camera_x = player_x - edge_margin_x
+                camera_moved = True
+            
+            # Bord inférieur
+            if screen_y > self.screen_height - edge_margin_y:
+                self.camera_y = player_y - (self.screen_height - edge_margin_y)
+                camera_moved = True
+            
+            # Bord supérieur
+            elif screen_y < edge_margin_y:
+                self.camera_y = player_y - edge_margin_y
+                camera_moved = True
+            
+            # Limiter la caméra aux bords de la carte en tenant compte de l'écran
+            # Utiliser les dimensions réelles de la carte avec les offsets
+            self.camera_x = max(0 - self.offset_x, min(self.camera_x, self.map_width_px - self.screen_width + self.offset_x))
+            self.camera_y = max(0 - self.offset_y, min(self.camera_y, self.map_height_px - self.screen_height + self.offset_y))
+            
+            # Mettre à jour la position de la caméra
+            if camera_moved:
+                # Appliquer la nouvelle position caméra
+                camera_center_x = self.camera_x + (self.screen_width // 2)
+                camera_center_y = self.camera_y + (self.screen_height // 2)
+                
+                # Utiliser la méthode center avec un tuple pour déplacer la caméra
+                self.map_layer.center((camera_center_x, camera_center_y))
+                
+                # Mettre à jour le groupe
+                self.group.update()
+                
+                print(f"🎮 Caméra déplacée - Position: ({self.camera_x}, {self.camera_y})")
+            
+            # Afficher occasionnellement les infos de débogage
+            if random.random() < 0.02:  # 2% du temps
+                self.debug_print_map_state()
+                
         except Exception as e:
             print(f"❌ Erreur lors de la mise à jour de la caméra: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def debug_print_map_state(self):
+        """Affiche les informations de débogage sur l'état actuel de la carte"""
+        print("\n===== DEBUG MAP STATE =====")
+        print(f"Map dimensions: {self.width}x{self.height} tiles ({self.map_width_px}x{self.map_height_px} px)")
+        print(f"Camera position: ({self.camera_x}, {self.camera_y})")
+        print(f"Offsets: X={self.offset_x}, Y={self.offset_y}")
+        print("==========================\n")
     
     def is_walkable(self, x, y):
         """Vérifie si la position (x, y) est praticable avec des logs détaillés"""
         # Calculer les limites de la carte en pixels
-        map_width = self.width * self.real_tile_width
-        map_height = self.height * self.real_tile_height
+        map_width = self.map_width_px
+        map_height = self.map_height_px
         
         print(f"\n🕹️ Vérification de praticabilité:")
         print(f"   Position pixel: ({x}, {y})")
         print(f"   Taille réelle de tuile: {self.real_tile_width}x{self.real_tile_height}")
         print(f"   Limites de la carte en pixels: {map_width}x{map_height}")
         
-        # Vérifier les limites de la carte
-        if (x < 0 or y < 0 or x >= map_width or y >= map_height):
+        # Pour la vérification de praticabilité, utiliser une plus grande tolérance
+        # aux bords de la carte pour éviter les faux-positifs "hors limites"
+        margin = 20  # pixels de tolérance
+        
+        # Vérifier les limites de la carte avec la marge de tolérance
+        if (x < -margin or y < -margin or 
+            x >= map_width + margin or y >= map_height + margin):
             print(f"❌ Position ({x}, {y}) hors limites de la carte")
             return False
         
         # Convertir en coordonnées de tuile
         tile_x = int(x // self.real_tile_width)
         tile_y = int(y // self.real_tile_height)
+        
+        # Limiter les coordonnées de tuile aux dimensions de la carte
+        tile_x = max(0, min(tile_x, self.width - 1))
+        tile_y = max(0, min(tile_y, self.height - 1))
         
         print(f"   Position tuile: ({tile_x}, {tile_y})")
         
@@ -152,7 +243,7 @@ class TiledMap:
                     if gid != 0:
                         # Mode permissif : considérer certaines tuiles comme praticables
                         # Liste des GID que vous savez être praticables
-                        walkable_gids = [2954, 2955, 3094, 3095, 5]  # Ajoutez les GID de vos tuiles de sol
+                        walkable_gids = [2954, 2955, 3094, 3095, 5, 2]  # Ajoutez les GID de vos tuiles de sol
                         if gid in walkable_gids:
                             print(f"   ✅ GID {gid} considéré comme praticable par défaut")
                             walkable_found = True
@@ -168,7 +259,7 @@ class TiledMap:
         return walkable_found
 
     def is_grass(self, x, y):
-        """Vérifie si la position (x, y) est dans l'herbe"""
+        """Vérifie si la position (x, y) est dans les hautes herbes"""
         # Convertir en coordonnées de tuile
         tile_x = int(x // self.real_tile_width)
         tile_y = int(y // self.real_tile_height)
@@ -178,25 +269,38 @@ class TiledMap:
             tile_x >= self.width or tile_y >= self.height):
             return False
         
-        # Vérifier chaque calque visible
+        # Vérification 1: Rechercher un calque spécifique nommé "hautes_herbes"
         for layer in self.tmx_data.visible_layers:
-            if hasattr(layer, 'data'):
-                try:
-                    # Récupérer le GID de la tuile
-                    gid = layer.data[tile_y][tile_x]
-                    
-                    # Vérifier les propriétés du calque
-                    if hasattr(layer, 'properties'):
-                        # Si le calque est marqué comme herbe
-                        if layer.properties.get('type') == 'grass':
+            if hasattr(layer, 'name') and layer.name == "hautes_herbes":
+                if hasattr(layer, 'data'):
+                    try:
+                        # Récupérer le GID de la tuile
+                        gid = layer.data[tile_y][tile_x]
+                        
+                        # Si la tuile n'est pas vide (GID > 0), c'est de l'herbe
+                        if gid > 0:
+                            print(f"🌿 Détection herbe dans calque 'hautes_herbes': GID {gid}")
                             return True
-                    
-                    # Vérifier si la tuile est dans la liste des tuiles d'herbe
-                    grass_gids = [2954, 2955, 3094, 3095, 5]  # Ajoutez les GID de vos tuiles d'herbe
-                    if gid in grass_gids:
-                        return True
-                    
-                except (IndexError, AttributeError, KeyError):
-                    continue
+                            
+                    except (IndexError, AttributeError, KeyError) as e:
+                        print(f"Erreur lors de la vérification du calque 'hautes_herbes': {e}")
         
+        # Vérification 2: Rechercher un calque avec type='haute_herbe'
+        # (différent de 'grass' pour éviter la confusion avec le sol)
+        for layer in self.tmx_data.visible_layers:
+            if hasattr(layer, 'properties') and layer.properties.get('type') == 'haute_herbe':
+                if hasattr(layer, 'data'):
+                    try:
+                        # Récupérer le GID de la tuile
+                        gid = layer.data[tile_y][tile_x]
+                        
+                        # Si la tuile n'est pas vide (GID > 0), c'est de l'herbe
+                        if gid > 0:
+                            print(f"🌿 Détection herbe dans calque de type 'haute_herbe': GID {gid}")
+                            return True
+                            
+                    except (IndexError, AttributeError, KeyError) as e:
+                        print(f"Erreur lors de la vérification du calque de type 'haute_herbe': {e}")
+        
+        # Pas d'herbe haute détectée
         return False
