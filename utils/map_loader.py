@@ -87,50 +87,85 @@ class TiledMap:
     def update(self, player_rect):
         """Met à jour le défilement de la carte en centrant sur le joueur"""
         try:
+            # Calculer le centre de l'écran
+            screen_center_x = 400  # Moitié de 800
+            screen_center_y = 300  # Moitié de 600
+            
             # Centrer la caméra sur le joueur
-            self.group.center(player_rect.center)
+            self.group.center((screen_center_x, screen_center_y))
+            
+            # Ajuster la position de la vue pour suivre le joueur
+            self.map_layer.set_center(
+                player_rect.centerx, 
+                player_rect.centery
+            )
+            
             # Mettre à jour le groupe
             self.group.update()
+            
+            print(f"🎮 Mise à jour de la caméra centrée sur {player_rect.center}")
         except Exception as e:
             print(f"❌ Erreur lors de la mise à jour de la caméra: {e}")
     
     def is_walkable(self, x, y):
-        """Vérifie si la position (x, y) est praticable"""
+        """Vérifie si la position (x, y) est praticable avec des logs détaillés"""
+        # Calculer les limites de la carte en pixels
+        map_width = self.width * self.real_tile_width
+        map_height = self.height * self.real_tile_height
+        
+        print(f"\n🕹️ Vérification de praticabilité:")
+        print(f"   Position pixel: ({x}, {y})")
+        print(f"   Taille réelle de tuile: {self.real_tile_width}x{self.real_tile_height}")
+        print(f"   Limites de la carte en pixels: {map_width}x{map_height}")
+        
+        # Vérifier les limites de la carte
+        if (x < 0 or y < 0 or x >= map_width or y >= map_height):
+            print(f"❌ Position ({x}, {y}) hors limites de la carte")
+            return False
+        
         # Convertir en coordonnées de tuile
         tile_x = int(x // self.real_tile_width)
         tile_y = int(y // self.real_tile_height)
         
-        # Vérifier les limites de la carte
-        if (tile_x < 0 or tile_y < 0 or 
-            tile_x >= self.width or tile_y >= self.height):
-            return False
+        print(f"   Position tuile: ({tile_x}, {tile_y})")
         
         # Vérifier chaque calque visible
+        walkable_found = False
         for layer in self.tmx_data.visible_layers:
             if hasattr(layer, 'data'):
                 try:
                     # Récupérer le GID de la tuile
                     gid = layer.data[tile_y][tile_x]
                     
+                    print(f"   Calque: {layer.name}")
+                    print(f"   GID de la tuile: {gid}")
+                    
                     # Vérifier les propriétés du calque
                     if hasattr(layer, 'properties'):
+                        print(f"   Propriétés du calque: {layer.properties}")
                         # Si le calque est marqué comme praticable
                         if layer.properties.get('walkable', False):
-                            return True
+                            print("   ✅ Calque marqué comme praticable")
+                            walkable_found = True
                     
                     # Vérifier si la tuile est non vide
                     if gid != 0:
-                        # Regarder les propriétés de la tuile
-                        tile_properties = self.tmx_data.get_tile_properties_by_gid(gid)
-                        
-                        # Vérifier si la tuile est explicitement praticable
-                        if tile_properties and tile_properties.get('walkable', False):
-                            return True
-                
-                except (IndexError, AttributeError, KeyError):
-                    continue
+                        # Mode permissif : considérer certaines tuiles comme praticables
+                        # Liste des GID que vous savez être praticables
+                        walkable_gids = [2954, 2955, 3094, 3095, 5]  # Ajoutez les GID de vos tuiles de sol
+                        if gid in walkable_gids:
+                            print(f"   ✅ GID {gid} considéré comme praticable par défaut")
+                            walkable_found = True
+                    
+                    # Si on a trouvé une tuile praticable, on peut arrêter de chercher
+                    if walkable_found:
+                        break
+                    
+                except (IndexError, AttributeError, KeyError) as e:
+                    print(f"   Erreur lors de la vérification: {e}")
         
-        return False
+        print(f"   Résultat final: {'Praticable' if walkable_found else 'Non praticable'}")
+        return walkable_found
 
     def is_grass(self, x, y):
         """Vérifie si la position (x, y) est dans l'herbe"""
@@ -156,15 +191,11 @@ class TiledMap:
                         if layer.properties.get('type') == 'grass':
                             return True
                     
-                    # Vérifier si la tuile est non vide
-                    if gid != 0:
-                        # Regarder les propriétés de la tuile
-                        tile_properties = self.tmx_data.get_tile_properties_by_gid(gid)
-                        
-                        # Vérifier si la tuile est explicitement de l'herbe
-                        if tile_properties and tile_properties.get('type') == 'grass':
-                            return True
-                
+                    # Vérifier si la tuile est dans la liste des tuiles d'herbe
+                    grass_gids = [2954, 2955, 3094, 3095, 5]  # Ajoutez les GID de vos tuiles d'herbe
+                    if gid in grass_gids:
+                        return True
+                    
                 except (IndexError, AttributeError, KeyError):
                     continue
         

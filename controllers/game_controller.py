@@ -253,10 +253,11 @@ class GameController:
             if 0 <= grid_x < self.map.width and 0 <= grid_y < self.map.height:
                 is_in_grass = self.map.is_grass(grid_x, grid_y)
         
-        if is_in_grass and random.random() < 0.1:  # 10% de chance
+        # Réduire la probabilité de rencontre et ajouter un cooldown plus long
+        if is_in_grass and random.random() < 0.02:  # Changé de 0.1 à 0.02
             print("🌿 Rencontre dans l'herbe!")
             self._trigger_pokemon_encounter()
-            self.encounter_cooldown = 30  # Environ 0.5 seconde à 60 FPS
+            self.encounter_cooldown = 100  # Augmenté de 30 à 100 (environ 1-2 secondes à 60 FPS)
     
     def _trigger_pokemon_encounter(self):
         """Déclenche une rencontre avec un Pokémon sauvage"""
