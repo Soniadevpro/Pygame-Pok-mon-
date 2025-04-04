@@ -2,9 +2,6 @@
 🎮 Pygame Pokémon Adventure
 <img src="https://via.placeholder.com/800x200?text=Pok%C3%A9mon+Pygame+Adventure" alt="Bannière du jeu" width="600"/>
 Un clone de Pokémon développé avec Pygame et Python
-Afficher l'image
-Afficher l'image
-Afficher l'image
 Description •
 Fonctionnalités •
 Installation •
@@ -12,6 +9,7 @@ Comment jouer •
 Structure •
 Développement
 </div>
+
 
 📝 Description
 Bienvenue dans cette aventure Pokémon créée avec Pygame ! Ce projet est un clone du célèbre jeu Pokémon, développé entièrement en Python. Explore le monde, rencontre des Pokémon sauvages, combats et capture-les pour devenir le meilleur dresseur !
@@ -29,35 +27,13 @@ Bienvenue dans cette aventure Pokémon créée avec Pygame ! Ce projet est un cl
 </tr>
 </table>
 </div>
-✨ Fonctionnalités
-<table>
-  <tr>
-    <td>
-      <ul>
-        <li>🗺️ <b>Système de carte</b> - Support de cartes Tiled et traditionnelles</li>
-        <li>⚔️ <b>Combats au tour par tour</b> - Affronte des Pokémon sauvages</li>
-        <li>🏆 <b>Système de capture</b> - Capture les Pokémon avec des Pokéballs</li>
-        <li>📊 <b>Statistiques</b> - HP, attaque, défense pour chaque Pokémon</li>
-      </ul>
-    </td>
-    <td>
-      <ul>
-        <li>🌿 <b>Rencontres aléatoires</b> - Dans les hautes herbes</li>
-        <li>🎒 <b>Inventaire</b> - Gestion des objets comme les Pokéballs et potions</li>
-        <li>🔄 <b>Animations</b> - Sprites animés pour les personnages et Pokémon</li>
-        <li>🔌 <b>PokéAPI</b> - Intégration avec l'API pour les données des Pokémon</li>
-      </ul>
-    </td>
-  </tr>
-</table>
+
 🚀 Installation
 Prérequis
 
 Python 3.6+
 pip (gestionnaire de paquets Python)
-
-Installation en 3 étapes
-bashCopier# 1. Clone du dépôt
+# 1. Clone du dépôt
 git clone https://github.com/soniadevpro/pygame-pokemon.git
 cd pygame-pokemon
 
@@ -66,6 +42,7 @@ pip install pygame pytmx pyscroll requests
 
 # 3. Lancement du jeu
 python main.py
+
 <details>
 <summary><b>🔧 Problèmes courants</b></summary>
 
@@ -84,8 +61,9 @@ Cliquez sur Attaque pour attaquer le Pokémon adverse
 Cliquez sur Capture pour essayer de capturer le Pokémon
 Cliquez sur Fuite pour tenter de fuir le combat
 
-🗂️ Structure du projet
-Copiersoniadevpro-pygame-pokemon/
+
+
+soniadevpro-pygame-pokemon/
 ├── 📜 extract_sprites.py     # Utilitaire pour extraire les sprites
 ├── 📜 extract_tiles.py       # Utilitaire pour extraire les tuiles
 ├── 📜 main.py                # Point d'entrée du jeu
@@ -115,6 +93,8 @@ Copiersoniadevpro-pygame-pokemon/
     ├── 📜 game_view.py       # Affichage principal du jeu
     ├── 📜 inventory_view.py  # Affichage de l'inventaire
     └── 📜 team_view.py       # Affichage de l'équipe Pokémon
+
+
 🛠️ Développement
 <details>
 <summary><b>Extraire des sprites</b></summary>
