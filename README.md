@@ -49,36 +49,43 @@ Capture : Essayer de capturer le Pokémon
 Fuite : Tenter de fuir le combat
 
 🗂️ Structure du projet
-Copiersoniadevpro-pygame-pokemon/
-├── extract_sprites.py     # Utilitaire pour extraire les sprites
-├── extract_tiles.py       # Utilitaire pour extraire les tuiles
-├── main.py                # Point d'entrée du jeu
-│
-├── assets/                # Ressources du jeu
-│   ├── maps/
-│   ├── sprites/
-│   └── tiles/
-│
-├── controllers/           # Contrôleurs du jeu (MVC)
-│   └── game_controller.py
-│
-├── models/                # Modèles de données (MVC)
-│   ├── combat.py          # Système de combat
-│   ├── inventory.py       # Gestion de l'inventaire
-│   ├── map.py             # Carte traditionnelle
-│   ├── player.py          # Gestion du joueur
-│   └── pokemon.py         # Classe Pokémon
-│
-├── utils/                 # Utilitaires divers
-│   ├── map_loader.py      # Chargeur de cartes Tiled
-│   ├── pokeapi.py         # Interface avec PokéAPI
-│   └── settings.py        # Paramètres du jeu
-│
-└── views/                 # Interface utilisateur (MVC)
-    ├── combat_view.py     # Affichage des combats
-    ├── game_view.py       # Affichage principal du jeu
-    ├── inventory_view.py  # Affichage de l'inventaire
-    └── team_view.py       # Affichage de l'équipe Pokémon
+Fichiers racine
+
+extract_sprites.py - Utilitaire pour extraire les sprites
+extract_tiles.py - Utilitaire pour extraire les tuiles
+main.py - Point d'entrée du jeu
+
+Dossiers principaux
+📁 assets/ - Ressources du jeu
+
+maps/ - Cartes du jeu
+sprites/ - Sprites des Pokémon
+tiles/ - Tuiles pour les cartes
+
+📁 controllers/ - Contrôleurs du jeu (MVC)
+
+game_controller.py - Contrôleur principal
+
+📁 models/ - Modèles de données (MVC)
+
+combat.py - Système de combat
+inventory.py - Gestion de l'inventaire
+map.py - Carte traditionnelle
+player.py - Gestion du joueur
+pokemon.py - Classe Pokémon
+
+📁 utils/ - Utilitaires divers
+
+map_loader.py - Chargeur de cartes Tiled
+pokeapi.py - Interface avec PokéAPI
+settings.py - Paramètres du jeu
+
+📁 views/ - Interface utilisateur (MVC)
+
+combat_view.py - Affichage des combats
+game_view.py - Affichage principal du jeu
+inventory_view.py - Affichage de l'inventaire
+team_view.py - Affichage de l'équipe Pokémon
 
 🛠️ Développement
 Extraire des sprites
